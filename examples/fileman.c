@@ -22,6 +22,7 @@
 /* fileman.c -- A tiny application which demonstrates how to use the
    GNU Readline library.  This application interactively allows users
    to manipulate files and their modes. */
+#include <syslog.h>
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
@@ -61,6 +62,9 @@
 #  include <readline/history.h>
 #endif
 
+extern int rl_display_fixed;
+extern int rl_visible_prompt_length;
+
 extern char *xmalloc PARAMS((size_t));
 
 /* The names of functions that actually do the manipulation. */
@@ -85,6 +89,11 @@ typedef struct {
 
 COMMAND commands[] = {
   { "cd", com_cd, "Change to directory DIR" },
+  { "cat", (rl_icpfunc_t *)NULL, "TODO" },
+  { "can", (rl_icpfunc_t *)NULL, "TODO" },
+  { "canada", (rl_icpfunc_t *)NULL, "TODO" },
+  { "camera", (rl_icpfunc_t *)NULL, "TODO" },
+  { "cancel", (rl_icpfunc_t *)NULL, "TODO" },
   { "delete", com_delete, "Delete FILE" },
   { "help", com_help, "Display this text" },
   { "?", com_help, "Synonym for `help'" },
@@ -95,6 +104,10 @@ COMMAND commands[] = {
   { "rename", com_rename, "Rename FILE to NEWNAME" },
   { "stat", com_stat, "Print out statistics on FILE" },
   { "view", com_view, "View the contents of FILE" },
+  { "Makefile", (rl_icpfunc_t *)NULL, "TODO" },
+  { "very-long-command", (rl_icpfunc_t *)NULL, "TODO" },
+  { "vconfig", (rl_icpfunc_t *)NULL, "TODO" },
+
   { (char *)NULL, (rl_icpfunc_t *)NULL, (char *)NULL }
 };
 
@@ -125,6 +138,7 @@ main (argc, argv)
 {
   char *line, *s;
 
+  openlog("fileman", LOG_PID, LOG_DAEMON);
   progname = argv[0];
 
   initialize_readline ();	/* Bind our completer. */
@@ -150,6 +164,8 @@ main (argc, argv)
 
       free (line);
     }
+
+  closelog();
   exit (0);
 }
 
@@ -189,7 +205,10 @@ execute_line (line)
   word = line + i;
 
   /* Call the function. */
-  return ((*(command->func)) (word));
+  if(command->func)
+    return ((*(command->func)) (word));
+  else
+    return (-2);
 }
 
 /* Look up NAME as the name of a command, and return a pointer to that
@@ -237,6 +256,7 @@ stripwhite (string)
 
 char *command_generator PARAMS((const char *, int));
 char **fileman_completion PARAMS((const char *, int, int));
+void fileman_display PARAMS((char **, int, int));
 
 /* Tell the GNU Readline library how to complete.  We want to try to complete
    on command names if this is the first word in the line, or on filenames
@@ -248,6 +268,10 @@ initialize_readline ()
 
   /* Tell the completer that we want a crack first. */
   rl_attempted_completion_function = fileman_completion;
+  rl_completion_display_matches_hook = fileman_display;
+  rl_variable_bind ("skip-completed-text", "on");
+//  rl_variable_bind ("print-completions-horizontally", "on");
+  rl_variable_bind ("completion-query-items", "3");
 }
 
 /* Attempt to complete on the contents of TEXT.  START and END bound the
@@ -267,10 +291,61 @@ fileman_completion (text, start, end)
   /* If this word is at the start of the line, then it is a command
      to complete.  Otherwise it is the name of a file in the current
      directory. */
-  if (start == 0)
+//  if (start == 0)
     matches = rl_completion_matches (text, command_generator);
+  syslog(LOG_INFO, "s(%d), e(%d), t(%s) matches[%x]\n", start, end, text, (int)matches);
+  if(NULL == matches) {
+	  rl_crlf ();
+
+	  char format[64] = {0};
+	  sprintf(format, "%%-%ds^\n",rl_visible_prompt_length + start);
+	  printf(format, "");
+	  printf("%% Invalid input at caret.\n");
+
+	  rl_crlf ();
+	  rl_forced_update_display ();
+	  rl_display_fixed = 1;
+  }
 
   return (matches);
+}
+
+const char* getDocByCommand(const char* cmd)
+{
+	const char* name = NULL;
+	const char* ret = "???";
+	int list_index = 0;
+	while (name = commands[list_index].name)
+	{
+		if (strcmp (name, cmd) == 0) {
+			ret = commands[list_index].doc;
+		}
+		list_index++;
+	}
+
+	return ret;
+}
+
+/*TODO we need interface that:
+ * 1. get command & its comment under certain directory
+ * 2. get comment by its command under certain directory
+ * by frank.
+ */
+
+void fileman_display (char **matches, int len, int max)
+{
+  //syslog(LOG_INFO, "len(%d), max(%d)\n", len, max);
+  char format[64] = {0};
+  sprintf(format, "  %%-%ds  %%s\n", max);
+  int i = 1;
+  rl_crlf ();
+  for(;i < len; i++) {
+   // syslog(LOG_INFO, "matches[%d]:%s\n", i, matches[i]);
+    printf (format, matches[i], getDocByCommand(matches[i]));
+  }
+  rl_crlf ();
+  rl_forced_update_display ();
+  rl_display_fixed = 1;
 }
 
 /* Generator function for command completion.  STATE lets us know whether
