@@ -270,7 +270,6 @@ initialize_readline ()
   rl_attempted_completion_function = fileman_completion;
   rl_completion_display_matches_hook = fileman_display;
   rl_variable_bind ("skip-completed-text", "on");
-//  rl_variable_bind ("print-completions-horizontally", "on");
   rl_variable_bind ("completion-query-items", "3");
 }
 
@@ -284,6 +283,7 @@ fileman_completion (text, start, end)
      const char *text;
      int start, end;
 {
+  rl_attempted_completion_over = 1;
   char **matches;
 
   matches = (char **)NULL;
@@ -293,7 +293,9 @@ fileman_completion (text, start, end)
      directory. */
 //  if (start == 0)
     matches = rl_completion_matches (text, command_generator);
-  syslog(LOG_INFO, "s(%d), e(%d), t(%s) matches[%x]\n", start, end, text, (int)matches);
+  syslog(LOG_INFO, "buffer[%s] s(%d), e(%d), t(%s) matches[%x]\n", rl_line_buffer, start, end, text, (int)matches);
+  
+  //no supported command matches
   if(NULL == matches) {
 	  rl_crlf ();
 
@@ -339,7 +341,7 @@ void fileman_display (char **matches, int len, int max)
   sprintf(format, "  %%-%ds  %%s\n", max);
   int i = 1;
   rl_crlf ();
-  for(;i < len; i++) {
+  for(;i <= len; i++) {
    // syslog(LOG_INFO, "matches[%d]:%s\n", i, matches[i]);
     printf (format, matches[i], getDocByCommand(matches[i]));
   }
@@ -358,6 +360,7 @@ command_generator (text, state)
 {
   static int list_index, len;
   char *name;
+  syslog(LOG_INFO, "%s state=%d\n", __FUNCTION__, state);
 
   /* If this is a new word to complete, initialize now.  This includes
      saving the length of TEXT for efficiency, and initializing the index
